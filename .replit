@@ -1,0 +1,31 @@
+entrypoint = "server.js"
+
+modules = ["nodejs-22"]
+
+[nix]
+channel = "stable-24_11"
+packages = ["nodejs_22", "lsof"]
+
+[deployment]
+deploymentTarget = "autoscale"
+
+[workflows]
+runButton = "Start App"
+
+[[workflows.workflow]]
+name = "Start App"
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = """
+npm install
+npm start
+"""
+
+[[ports]]
+localPort = 3000
+externalPort = 80
+
+[agent]
+expertMode = true

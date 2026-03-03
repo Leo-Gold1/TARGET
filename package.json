@@ -1,0 +1,15 @@
+{
+  "name": "multi-user-sheet-app",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "body-parser": "^2.2.2",
+    "googleapis": "^171.4.0"
+  }
+}

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+<div class="container">
+  <h2 id="welcome"></h2>
+
+  <div class="glass-card">
+    <h3>Enter Sold Items</h3>
+    <form id="saleForm">
+      <label>AMC Amount</label><input type="number" name="amc" min="0">
+      <label>MTF Amount</label><input type="number" name="mtf" min="0">
+      <label>C/S Amount</label><input type="number" name="cs" min="0">
+      <label>EW+ Amount</label><input type="number" name="ew" min="0">
+      <label>EW+ Bike Number</label><input type="text" name="ewBike">
+      <label>D Carbon Amount</label><input type="number" name="dcarbon" min="0">
+      <label>D Carbon Bike Number</label><input type="text" name="dcarbonBike">
+      <label>Cotting Amount</label><input type="number" name="cotting" min="0">
+      <label>Cotting Bike Number</label><input type="text" name="cottingBike">
+      <label>OIL Amount</label><input type="number" name="oil" min="0">
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+
+  <div class="glass-card">
+    <h3>Daily Sales</h3>
+    <div id="salesList"></div>
+  </div>
+
+  <div class="glass-card">
+    <h3>Monthly Summary</h3>
+    <canvas id="monthlyChart"></canvas>
+  </div>
+
+  <button id="logoutBtn" class="logout">🚪</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
