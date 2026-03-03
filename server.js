@@ -4,16 +4,22 @@ import bodyParser from "body-parser";
 import { google } from "googleapis";
 import fs from "fs";
 import path from "path";
+import dotenv from "dotenv";
+
+// Load .env
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SPREADSHEET_ID = process.env.SHEET_ID;
+const SESSION_SECRET = process.env.SESSION_SECRET || "supersecretkey";
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(express.static("public"));
 app.use(session({
-  secret: "supersecretkey",
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: true,
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 } // 7 days
@@ -28,9 +34,6 @@ const auth = new google.auth.GoogleAuth({
 });
 const sheets = google.sheets({ version: "v4", auth });
 
-// Replace with your sheet ID
-const SPREADSHEET_ID = "1tauxNhd5Hitak1mUFKYCSKFjJrMXJNFjugAanQ8-x00";
-
 // ROOT
 app.get("/", (req, res) => {
   if (req.session.userId) return res.redirect("/dashboard.html");
@@ -44,7 +47,7 @@ app.post("/login", async (req, res) => {
   try {
     const resp = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: "users!A2:C"
+      range: "users!A2:C" // ID | username | password
     });
 
     const users = resp.data.values || [];
@@ -55,6 +58,7 @@ app.post("/login", async (req, res) => {
       req.session.username = user[1];
       return res.json({ success: true });
     }
+
     res.json({ success: false });
   } catch (err) {
     console.error(err);
