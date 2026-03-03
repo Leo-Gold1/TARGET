@@ -82,10 +82,11 @@ app.post("/add-sale", async (req, res) => {
   if (!req.session.userId) return res.status(401).json({ error: "Unauthorized" });
 
   try {
-    const today = new Date();
-    const date = today.toISOString().split("T")[0];
-    const month = today.getMonth() + 1;
-    const year = today.getFullYear();
+    // IST date
+    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const date = nowIST.toISOString().split("T")[0];
+    const month = nowIST.getMonth() + 1;
+    const year = nowIST.getFullYear();
 
     const fields = [
       "amc","mtf","cs",
@@ -96,18 +97,40 @@ app.post("/add-sale", async (req, res) => {
     ];
 
     const total = fields.reduce((acc,f) => acc + Number(req.body[f] || 0), 0);
-    const row = [
+
+    // --- Get all sales first ---
+    const resp = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "sales!A2:O"
+    });
+    const rows = resp.data.values || [];
+
+    // --- Find existing row for this user & date ---
+    const rowIndex = rows.findIndex(r => r[0] === req.session.userId && r[1] === date);
+
+    const rowData = [
       req.session.userId, date, month, year,
       ...fields.map(f => req.body[f] || 0),
       total
     ];
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "sales!A2",
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [row] }
-    });
+    if(rowIndex >= 0){
+      // Update existing row
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `sales!A${rowIndex+2}:O${rowIndex+2}`, // +2 because A2 is first row of data
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [rowData] }
+      });
+    } else {
+      // Append new row
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "sales!A2",
+        valueInputOption: "USER_ENTERED",
+        requestBody: { values: [rowData] }
+      });
+    }
 
     res.json({ success: true });
   } catch (err) {

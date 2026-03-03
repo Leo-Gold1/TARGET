@@ -1,117 +1,165 @@
 let currentUser = null;
+let salesData = [];
+const products = ["amc","mtf","cs","ew","dcarbon","cotting","oil"];
+const colors = ["#1565c0","#1e88e5","#64b5f6","#ff8a65","#ffb74d","#81c784","#aed581"];
 
-// Dark mode toggle
-const darkToggle = document.getElementById("darkToggle");
-darkToggle?.addEventListener("click", () => {
-  document.body.classList.toggle("dark");
-});
-
-// Check logged in
-async function checkLogin() {
-  const res = await fetch("/me");
-  const data = await res.json();
-  if (data.error) return window.location.href = "/login.html";
-  currentUser = data;
-  document.getElementById("welcome").innerText = `Welcome, ${currentUser.username}`;
-  loadSales();
-}
-checkLogin();
-
-// Logout
-document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-  await fetch("/logout");
-  window.location.href = "/login.html";
-});
-
-// Submit sale
-document.getElementById("itemForm")?.addEventListener("submit", async e => {
-  e.preventDefault();
-  const form = e.target;
-  const body = Object.fromEntries(new FormData(form).entries());
-  const res = await fetch("/add-sale", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if(data.success){
-    showToast("Sale added successfully ✅");
-    form.reset();
-    loadSales();
-  } else showToast("Failed to add sale ❌");
-});
-
-// Toast notifications
-function showToast(msg){
+// --- TOAST ---
+function showToast(msg,color="#1e88e5"){
   const t = document.createElement("div");
   t.className = "toast";
+  t.style.background = color;
   t.innerText = msg;
   document.body.appendChild(t);
   setTimeout(()=>t.remove(),3000);
 }
 
-// Load sales and render charts
+// --- TODAY DATE (IST) ---
+const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+const yyyy = nowIST.getFullYear();
+const mm = String(nowIST.getMonth() + 1).padStart(2, "0"); // Month 1-12
+const dd = String(nowIST.getDate()).padStart(2, "0");      // Day of month
+const todayStr = `${yyyy}-${mm}-${dd}`;
+document.getElementById("todayDate").innerText = todayStr;
+
+// --- CHECK LOGIN ---
+async function checkLogin(){
+  const res = await fetch("/me");
+  const data = await res.json();
+  if(data.error) return window.location.href="/login.html";
+  currentUser = data.username;
+  document.getElementById("welcome").innerText = `Welcome, ${currentUser}`;
+  await loadSales();
+}
+checkLogin();
+
+// --- LOGOUT ---
+document.getElementById("logoutBtn").addEventListener("click", async ()=>{
+  await fetch("/logout");
+  window.location.href="/login.html";
+});
+
+// --- POPUP ---
+const popup = document.getElementById("popup");
+const popupText = document.getElementById("popupText");
+const popupConfirm = document.getElementById("popupConfirm");
+const popupCancel = document.getElementById("popupCancel");
+
+function showPopup(message){
+  return new Promise(resolve=>{
+    popupText.innerText = message;
+    popup.style.display="flex";
+    popupConfirm.onclick=()=>{ popup.style.display="none"; resolve(true); };
+    popupCancel.onclick=()=>{ popup.style.display="none"; resolve(false); };
+  });
+}
+
+// --- SUBMIT SALE ---
+document.getElementById("itemForm").addEventListener("submit", async e=>{
+  e.preventDefault();
+  const form = e.target;
+  const body = Object.fromEntries(new FormData(form).entries());
+
+  // Check if already added today
+  const existing = salesData.find(s=>s.date===todayStr);
+  if(existing){
+    const confirmEdit = await showPopup(`Today's sales already exist. Update entry for ${todayStr}?`);
+    if(!confirmEdit) return;
+    body.editDate = todayStr; // for server update
+  }
+
+  const res = await fetch("/add-sale",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(body)
+  });
+
+  const data = await res.json();
+  if(data.success){
+    showToast(existing ? `Entry for ${todayStr} updated ✅` : "Sales submitted successfully ✅");
+    form.reset();
+    await loadSales();
+  } else showToast("Error submitting sale ❌","red");
+});
+
+// --- LOAD SALES ---
 async function loadSales(){
   const res = await fetch("/sales");
-  const data = await res.json();
+  salesData = await res.json();
 
-  // --- Daily sales list ---
+  // One entry per day
+  const dailyMap = {};
+  salesData.forEach(d=>{ dailyMap[d.date]=d; });
+  const combinedData = Object.values(dailyMap).sort((a,b)=>new Date(a.date)-new Date(b.date));
+
+  // Fill form if today's entry exists
+  const todayEntry = combinedData.find(d=>d.date===todayStr);
+  if(todayEntry){
+    const form = document.getElementById("itemForm");
+    for(let key in todayEntry){
+      if(form[key]) form[key].value = todayEntry[key];
+    }
+  }
+
+  // Render daily sales
   const salesList = document.getElementById("salesList");
-  salesList.innerHTML = "";
-  data.forEach(d=>{
+  salesList.innerHTML="";
+  combinedData.forEach(d=>{
     const card = document.createElement("div");
-    card.className = "daily-card";
-    card.innerHTML = `
-      <strong>${d.date}</strong><br>
-      AMC: ${d.amc}, MTF: ${d.mtf}, CS: ${d.cs}, EW+: ${d.ew}, D Carbon: ${d.dcarbon}, Cotting: ${d.cotting}, OIL: ${d.oil}, Total: ${d.total}
-    `;
+    card.className="daily-card";
+    card.innerHTML=`
+      <div class="line-box">
+        <strong>${d.date}</strong><br>
+        AMC: ${d.amc}, MTF: ${d.mtf}, CS: ${d.cs}, EW+: ${d.ew}, D Carbon: ${d.dcarbon}, Cotting: ${d.cotting}, OIL: ${d.oil}
+      </div>`;
     salesList.appendChild(card);
   });
 
-  // --- Charts ---
-  renderCharts(data);
+  // Render totals box
+  renderTotalsBox(combinedData);
+
+  // Render monthly chart
+  renderMonthlyChart(combinedData);
 }
 
-// Render monthly and daily charts
-function renderCharts(data){
-  const products = ["amc","mtf","cs","ew","dcarbon","cotting","oil"];
-  const colors = ["#1565c0","#1e88e5","#64b5f6","#ff8a65","#ffb74d","#81c784","#aed581"];
+// --- RENDER TOTALS BOX ---
+function renderTotalsBox(data){
+  const totalsContent = document.getElementById("totalsContent");
+  const totals = products.map(p=>`${p.toUpperCase()}: ${data.reduce((acc,d)=>acc+Number(d[p]||0),0)}`);
+  totalsContent.innerHTML = totals.join(" | ");
+}
 
-  // Monthly chart
-  const months = [...new Set(data.map(d=>d.month))].sort((a,b)=>a-b);
-  const monthlyDatasets = products.map((p,i)=>({
-    label:p.toUpperCase(),
-    data: months.map(m => data.filter(d=>d.month==m).reduce((acc,b)=>acc+Number(b[p]||0),0)),
-    backgroundColor: colors[i]
-  }));
-  const ctx1 = document.getElementById("monthlyChart").getContext("2d");
-  if(window.monthlyChart) window.monthlyChart.destroy();
-  window.monthlyChart = new Chart(ctx1,{
-    type:"bar",
-    data:{labels:months,datasets:monthlyDatasets},
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{legend:{position:"bottom"}},
-      scales:{y:{beginAtZero:true}}
-    }
+// --- RENDER MONTHLY CHART ---
+function renderMonthlyChart(data){
+  // Ensure each entry has proper month number (1-function renderMonthlyChart(data){
+  // Ensure each entry has proper month number (1-12)
+  data.forEach(d=>{
+    if(!d.date) return; // skip invalid
+    const dateObj = new Date(new Date(d.date).toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));
+    d.month = dateObj.getMonth() + 1; // Jan=1
   });
 
-  // Daily chart
-  const dailyLabels = data.map(d=>d.date);
-  const dailyDatasets = products.map((p,i)=>({
-    label:p.toUpperCase(),
-    data:data.map(d=>Number(d[p]||0)),
-    borderColor: colors[i],
-    backgroundColor: colors[i]+"77",
-    fill:true,
-    tension:0.3
+  // Get unique months and sort
+  const months = [...new Set(data.map(d=>d.month))].sort((a,b)=>a-b);
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthLabels = months.map(m=>monthNames[m-1]);
+
+  // Prepare datasets per product
+  const monthlyDatasets = products.map((p,i)=>({
+    label: p.toUpperCase(),
+    data: months.map(m=>
+      data
+        .filter(d=>d.month === m)
+        .reduce((acc,b)=>acc + Number(b[p]||0),0)
+    ),
+    backgroundColor: colors[i]
   }));
-  const ctx2 = document.getElementById("dailyChart").getContext("2d");
-  if(window.dailyChart) window.dailyChart.destroy();
-  window.dailyChart = new Chart(ctx2,{
-    type:"line",
-    data:{labels:dailyLabels,datasets:dailyDatasets},
+
+  // Render Chart.js bar chart
+  const ctx = document.getElementById("monthlyChart").getContext("2d");
+  if(window.monthlyChart) window.monthlyChart.destroy();
+  window.monthlyChart = new Chart(ctx,{
+    type:"bar",
+    data:{labels:monthLabels, datasets:monthlyDatasets},
     options:{
       responsive:true,
       maintainAspectRatio:false,

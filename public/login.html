@@ -1,40 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Login</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="favicon.png">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="favicon.png">
 </head>
-<body>
-  <div class="container">
-    <h2>🔐 Login</h2>
+<body class="dark">
+
+<div class="container">
+  <div class="glass-card">
+    <h2>🛡️ Login</h2>
     <form id="loginForm">
       <label>Username</label>
-      <input type="text" name="username" required>
+      <input type="text" name="username" placeholder="Enter username" required>
       <label>Password</label>
-      <input type="password" name="password" required>
+      <input type="password" name="password" placeholder="Enter password" required>
       <button type="submit">Login</button>
     </form>
     <p id="error" class="error"></p>
   </div>
+</div>
 
-  <script>
-  const loginForm = document.getElementById("loginForm");
-  loginForm.addEventListener("submit", async e => {
-    e.preventDefault();
-    const username = loginForm.username.value;
-    const password = loginForm.password.value;
+<script>
+async function checkSession() {
+  // Redirect if already logged in
+  const res = await fetch("/me");
+  const data = await res.json();
+  if(!data.error) window.location.href = "/dashboard.html";
+}
+checkSession();
 
+const loginForm = document.getElementById("loginForm");
+
+loginForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  const username = loginForm.username.value.trim();
+  const password = loginForm.password.value.trim();
+  document.getElementById("error").innerText = "";
+
+  if(!username || !password){
+    document.getElementById("error").innerText = "❗Enter both username and password";
+    return;
+  }
+
+  try{
     const res = await fetch("/login", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
       body: JSON.stringify({username,password})
     });
 
     const data = await res.json();
-    if(data.success) window.location.href="/dashboard.html";
-    else document.getElementById("error").innerText = "Invalid credentials";
-  });
-  </script>
+
+    if(data.success){
+      window.location.href="/dashboard.html";
+    } else {
+      document.getElementById("error").innerText = "❌ Invalid username or password";
+    }
+  } catch(err){
+    console.error(err);
+    document.getElementById("error").innerText = "❗Login failed, try again";
+  }
+});
+</script>
+
 </body>
 </html>
