@@ -16,16 +16,16 @@ function showToast(msg,color="#1e88e5"){
 // --- TODAY DATE (IST) ---
 const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
 const yyyy = nowIST.getFullYear();
-const mm = String(nowIST.getMonth() + 1).padStart(2, "0"); // Month 1-12
-const dd = String(nowIST.getDate()).padStart(2, "0");      // Day of month
+const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+const dd = String(nowIST.getDate()).padStart(2, "0");
 const todayStr = `${yyyy}-${mm}-${dd}`;
 document.getElementById("todayDate").innerText = todayStr;
 
 // --- CHECK LOGIN ---
 async function checkLogin(){
-  const res = await fetch("/me");
+  const res = await fetch("/api/me");
   const data = await res.json();
-  if(data.error) return window.location.href="/login.html";
+  if(data.error) return window.location.href="/api/login";
   currentUser = data.username;
   document.getElementById("welcome").innerText = `Welcome, ${currentUser}`;
   await loadSales();
@@ -34,8 +34,8 @@ checkLogin();
 
 // --- LOGOUT ---
 document.getElementById("logoutBtn").addEventListener("click", async ()=>{
-  await fetch("/logout");
-  window.location.href="/login.html";
+  await fetch("/api/logout");
+  window.location.href="/api/login";
 });
 
 // --- POPUP ---
@@ -64,10 +64,10 @@ document.getElementById("itemForm").addEventListener("submit", async e=>{
   if(existing){
     const confirmEdit = await showPopup(`Today's sales already exist. Update entry for ${todayStr}?`);
     if(!confirmEdit) return;
-    body.editDate = todayStr; // for server update
+    body.editDate = todayStr;
   }
 
-  const res = await fetch("/add-sale",{
+  const res = await fetch("/api/add-sale",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body: JSON.stringify(body)
@@ -83,15 +83,13 @@ document.getElementById("itemForm").addEventListener("submit", async e=>{
 
 // --- LOAD SALES ---
 async function loadSales(){
-  const res = await fetch("/sales");
+  const res = await fetch("/api/sales");
   salesData = await res.json();
 
-  // One entry per day
   const dailyMap = {};
   salesData.forEach(d=>{ dailyMap[d.date]=d; });
   const combinedData = Object.values(dailyMap).sort((a,b)=>new Date(a.date)-new Date(b.date));
 
-  // Fill form if today's entry exists
   const todayEntry = combinedData.find(d=>d.date===todayStr);
   if(todayEntry){
     const form = document.getElementById("itemForm");
@@ -100,7 +98,6 @@ async function loadSales(){
     }
   }
 
-  // Render daily sales
   const salesList = document.getElementById("salesList");
   salesList.innerHTML="";
   combinedData.forEach(d=>{
@@ -114,10 +111,7 @@ async function loadSales(){
     salesList.appendChild(card);
   });
 
-  // Render totals box
   renderTotalsBox(combinedData);
-
-  // Render monthly chart
   renderMonthlyChart(combinedData);
 }
 
@@ -130,31 +124,24 @@ function renderTotalsBox(data){
 
 // --- RENDER MONTHLY CHART ---
 function renderMonthlyChart(data){
-  // Ensure each entry has proper month number (1-function renderMonthlyChart(data){
-  // Ensure each entry has proper month number (1-12)
   data.forEach(d=>{
-    if(!d.date) return; // skip invalid
+    if(!d.date) return;
     const dateObj = new Date(new Date(d.date).toLocaleString("en-US",{timeZone:"Asia/Kolkata"}));
-    d.month = dateObj.getMonth() + 1; // Jan=1
+    d.month = dateObj.getMonth() + 1;
   });
 
-  // Get unique months and sort
   const months = [...new Set(data.map(d=>d.month))].sort((a,b)=>a-b);
   const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const monthLabels = months.map(m=>monthNames[m-1]);
 
-  // Prepare datasets per product
   const monthlyDatasets = products.map((p,i)=>({
     label: p.toUpperCase(),
     data: months.map(m=>
-      data
-        .filter(d=>d.month === m)
-        .reduce((acc,b)=>acc + Number(b[p]||0),0)
+      data.filter(d=>d.month === m).reduce((acc,b)=>acc + Number(b[p]||0),0)
     ),
     backgroundColor: colors[i]
   }));
 
-  // Render Chart.js bar chart
   const ctx = document.getElementById("monthlyChart").getContext("2d");
   if(window.monthlyChart) window.monthlyChart.destroy();
   window.monthlyChart = new Chart(ctx,{
